@@ -1,0 +1,389 @@
+/* Admin Panel Styles */
+
+.admin-container {
+    min-height: calc(100vh - 80px);
+    padding: 2rem 0;
+}
+
+.admin-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.admin-header h1 {
+    font-size: 2.5rem;
+    color: white;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.admin-header p {
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.admin-nav {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--box-shadow);
+}
+
+.admin-nav ul {
+    display: flex;
+    list-style: none;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.admin-nav li a {
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    color: var(--dark-color);
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+    font-weight: 500;
+}
+
+.admin-nav li a:hover,
+.admin-nav li a.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.stats-dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card-admin {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: var(--box-shadow);
+    transition: var(--transition);
+}
+
+.stat-card-admin:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card-admin .stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+}
+
+.stat-card-admin .stat-label {
+    font-size: 1rem;
+    color: var(--gray-color);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Question Form */
+.question-form {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    box-shadow: var(--box-shadow);
+    margin-bottom: 2rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.form-full {
+    grid-column: 1 / -1;
+}
+
+.difficulty-select {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.difficulty-option {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+}
+
+.difficulty-input {
+    display: none;
+}
+
+.difficulty-label {
+    display: block;
+    padding: 0.75rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 500;
+}
+
+.difficulty-input:checked + .difficulty-label {
+    border-color: var(--primary-color);
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Live Bidding Section */
+.live-bidding-container {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    box-shadow: var(--box-shadow);
+}
+
+.bidding-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.control-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.control-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+}
+
+.bidding-timer {
+    background: linear-gradient(135deg, #4361ee, #3a0ca3);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    color: white;
+    text-align: center;
+    margin: 1.5rem 0;
+}
+
+.bidding-timer .timer-display {
+    font-size: 3rem;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.bids-live-feed {
+    background: var(--light-color);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.bids-live-feed h3 {
+    margin-bottom: 1rem;
+    color: var(--dark-color);
+}
+
+.bid-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: white;
+    border-radius: var(--border-radius);
+    margin-bottom: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.bid-entry.winner {
+    background: linear-gradient(135deg, #4ade80, #22c55e);
+    color: white;
+    font-weight: 600;
+}
+
+.bid-team-name {
+    font-weight: 500;
+}
+
+.bid-amount-display {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+/* Teams Table */
+.teams-table-container {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    box-shadow: var(--box-shadow);
+}
+
+.teams-table-container h2 {
+    margin-bottom: 1.5rem;
+    color: var(--dark-color);
+}
+
+.reset-coins-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.reset-coins-input {
+    width: 100px;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+/* Questions Management */
+.questions-management {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    box-shadow: var(--box-shadow);
+}
+
+.questions-list {
+    margin-top: 1.5rem;
+}
+
+.question-item {
+    background: var(--light-color);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--primary-color);
+}
+
+.question-item h4 {
+    margin-bottom: 0.5rem;
+    color: var(--dark-color);
+}
+
+.question-meta-admin {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--gray-color);
+}
+
+.question-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Status Indicators */
+.status-indicator {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.status-active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-inactive {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+/* Countdown Animation for Admin */
+@keyframes admin-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.timer-running {
+    animation: admin-pulse 1s infinite;
+}
+
+/* Winner Highlight */
+.winner-highlight {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: white;
+    padding: 2rem;
+    border-radius: var(--border-radius);
+    text-align: center;
+    margin: 1.5rem 0;
+    box-shadow: 0 10px 25px rgba(251, 191, 36, 0.3);
+}
+
+.winner-highlight h2 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.winner-highlight p {
+    font-size: 1.2rem;
+}
+
+/* No Data States */
+.no-data {
+    text-align: center;
+    padding: 3rem;
+    color: var(--gray-color);
+}
+
+.no-data i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .admin-header h1 {
+        font-size: 2rem;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .admin-nav ul {
+        flex-direction: column;
+    }
+    
+    .bidding-controls {
+        flex-direction: column;
+    }
+    
+    .stats-dashboard {
+        grid-template-columns: 1fr;
+    }
+    
+    .bid-entry {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.5rem;
+    }
+    
+    .question-meta-admin {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+}

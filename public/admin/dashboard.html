@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Bid2Code</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/admin/dashboard" class="logo">Bid2Code Admin</a>
+                <div class="nav-links">
+                    <a href="/admin/dashboard" class="nav-link active">Dashboard</a>
+                    <a href="/admin/create-question" class="nav-link">Create Question</a>
+                    <a href="/admin/live-bidding" class="nav-link">Live Bidding</a>
+                    <a href="#" class="nav-link" data-logout>Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container admin-container">
+        <div class="admin-header">
+            <h1>Competition Dashboard</h1>
+            <p>Manage and monitor the coding competition</p>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="admin-nav">
+            <ul>
+                <li><a href="/admin/dashboard" class="active">Overview</a></li>
+                <li><a href="/admin/create-question">Create Question</a></li>
+                <li><a href="/admin/live-bidding">Live Bidding</a></li>
+                <li><a href="#" onclick="AdminDashboard.refreshStats()">Refresh Stats</a></li>
+            </ul>
+        </div>
+
+        <!-- Statistics Dashboard -->
+        <div class="stats-dashboard">
+            <div class="stat-card-admin">
+                <div class="stat-label">Total Teams</div>
+                <div class="stat-value" id="totalTeams">0</div>
+            </div>
+            <div class="stat-card-admin">
+                <div class="stat-label">Total Questions</div>
+                <div class="stat-value" id="totalQuestions">0</div>
+            </div>
+            <div class="stat-card-admin">
+                <div class="stat-label">Active Teams</div>
+                <div class="stat-value" id="activeTeams">0</div>
+            </div>
+            <div class="stat-card-admin">
+                <div class="stat-label">Avg. Coins</div>
+                <div class="stat-value" id="avgCoins">0</div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="grid grid-cols-2">
+            <div class="card">
+                <h3 class="card-title mb-3">Quick Actions</h3>
+                <div class="grid" style="gap: 1rem;">
+                    <a href="/admin/create-question" class="btn btn-primary">Create New Question</a>
+                    <a href="/admin/live-bidding" class="btn btn-success">Start Live Bidding</a>
+                    <button class="btn btn-outline" onclick="AdminDashboard.loadTeams()">Manage Teams</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="card-title mb-3">Recent Activity</h3>
+                <div id="recentActivity">
+                    <div class="text-center p-3" id="noActivityMessage">
+                        <div>📊</div>
+                        <p>No recent activity</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Questions Overview -->
+        <div class="questions-management">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="card-title">Question Library</h2>
+                <a href="/admin/create-question" class="btn btn-primary">Add Question</a>
+            </div>
+            
+            <div id="questionsList">
+                <div class="no-data" id="noQuestionsAdmin">
+                    <div>❓</div>
+                    <h3>No Questions Created</h3>
+                    <p>Start by creating some coding challenges for the teams.</p>
+                    <a href="/admin/create-question" class="btn btn-primary mt-3">Create First Question</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        // Admin Dashboard Logic
+        class AdminDashboard {
+            constructor() {
+                this.stats = {};
+                this.questions = [];
+                this.teams = [];
+            }
+
+            async initialize() {
+                // First check sessionStorage for quick validation
+                const isAdminSession = sessionStorage.getItem('isAdmin');
+                console.log('SessionStorage check:', isAdminSession);
+                
+                if (!isAdminSession) {
+                    console.log('No admin session in sessionStorage, redirecting immediately');
+                    window.location.href = '/admin/login';
+                    return;
+                }
+                
+                // Then verify with server-side session
+                try {
+                    console.log('Checking server-side admin authentication...');
+                    const response = await fetch('/api/auth/me', {
+                        method: 'GET',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    console.log('Server auth check response status:', response.status);
+                    
+                    if (response.status === 401) {
+                        // Server session expired but we have sessionStorage
+                        console.warn('Server session expired, but sessionStorage exists. Re-logging may be needed.');
+                        // Don't redirect immediately - allow sessionStorage to work
+                        // Just log a warning and continue loading
+                    }
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('Server auth check response data:', data);
+                        
+                        if (data.userType !== 'admin') {
+                            console.error('User is not admin, redirecting to login');
+                            window.location.href = '/admin/login';
+                            return;
+                        }
+                        
+                        console.log('Admin authenticated successfully on server:', data.admin);
+                    } else {
+                        console.warn('Server auth check failed with status:', response.status);
+                        // Continue anyway if sessionStorage says admin
+                    }
+                    
+                    // Set up socket connection
+                    if (window.bidSocket) {
+                        window.bidSocket.joinAdminRoom();
+                    }
+
+                    // Load initial data regardless of server session status
+                    await this.loadStats();
+                    await this.loadQuestions();
+                } catch (error) {
+                    console.error('Auth check failed:', error);
+                    // If we have sessionStorage, try to continue anyway
+                    if (isAdminSession) {
+                        console.warn('Server check failed but sessionStorage exists, continuing...');
+                        await this.loadStats();
+                        await this.loadQuestions();
+                    } else {
+                        window.location.href = '/admin/login';
+                    }
+                }
+            }
+
+            async loadStats() {
+                try {
+                    const response = await fetch('/api/admin/stats', {
+                        credentials: 'include'
+                    });
+                    if (response.ok) {
+                        this.stats = await response.json();
+                        this.renderStats();
+                    }
+                } catch (error) {
+                    console.error('Error loading stats:', error);
+                }
+            }
+
+            renderStats() {
+                document.getElementById('totalTeams').textContent = this.stats.totalTeams || 0;
+                document.getElementById('totalQuestions').textContent = this.stats.totalQuestions || 0;
+                document.getElementById('activeTeams').textContent = this.stats.teamsWithQuestions || 0;
+                document.getElementById('avgCoins').textContent = Utils.formatCoins(this.stats.averageCoins || 0);
+            }
+
+            async loadQuestions() {
+                try {
+                    const response = await fetch('/api/admin/questions', {
+                        credentials: 'include'
+                    });
+                    if (response.ok) {
+                        this.questions = await response.json();
+                        this.renderQuestions();
+                    }
+                } catch (error) {
+                    console.error('Error loading questions:', error);
+                }
+            }
+
+            renderQuestions() {
+                const container = document.getElementById('questionsList');
+                
+                if (this.questions.length === 0) {
+                    document.getElementById('noQuestionsAdmin').classList.remove('hidden');
+                    return;
+                }
+
+                document.getElementById('noQuestionsAdmin').classList.add('hidden');
+                
+                const questionsHtml = this.questions.map(question => `
+                    <div class="question-item">
+                        <h4>${question.title}</h4>
+                        <div class="question-meta-admin">
+                            <span><strong>Round:</strong> ${question.round}</span>
+                            <span><strong>Difficulty:</strong> ${question.difficulty}</span>
+                            <span><strong>Created:</strong> ${Utils.formatDate(question.created_at)}</span>
+                        </div>
+                        <div class="question-actions">
+                            <button class="btn btn-sm btn-outline" onclick="AdminDashboard.editQuestion(${question.id})">Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick="AdminDashboard.deleteQuestion(${question.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                container.innerHTML = `<div class="questions-list">${questionsHtml}</div>`;
+            }
+
+            async loadTeams() {
+                try {
+                    const response = await fetch('/api/admin/teams', {
+                        credentials: 'include'
+                    });
+                    if (response.ok) {
+                        this.teams = await response.json();
+                        this.showTeamsModal();
+                    }
+                } catch (error) {
+                    console.error('Error loading teams:', error);
+                    Utils.showAlert('Failed to load teams', 'error');
+                }
+            }
+
+            showTeamsModal() {
+                // Create modal for team management
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.5);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 1000;
+                `;
+                
+                const modalContent = document.createElement('div');
+                modalContent.style.cssText = `
+                    background: white;
+                    padding: 2rem;
+                    border-radius: var(--border-radius);
+                    max-width: 600px;
+                    width: 90%;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                `;
+                
+                const teamsTable = `
+                    <h2>Team Management</h2>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Team Name</th>
+                                <th>Coins</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${this.teams.map(team => `
+                                <tr>
+                                    <td>${team.team_name}</td>
+                                    <td>${Utils.formatCoins(team.coins)}</td>
+                                    <td>
+                                        <div class="reset-coins-form">
+                                            <input type="number" class="reset-coins-input" 
+                                                   id="coins_${team.id}" 
+                                                   value="${team.coins}" 
+                                                   min="0" max="9999">
+                                            <button class="btn btn-sm btn-warning" 
+                                                    onclick="AdminDashboard.resetCoins(${team.id})">
+                                                Reset
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="text-center mt-3">
+                        <button class="btn btn-outline" onclick="this.closest('div').parentElement.parentElement.remove()">
+                            Close
+                        </button>
+                    </div>
+                `;
+                
+                modalContent.innerHTML = teamsTable;
+                modal.appendChild(modalContent);
+                document.body.appendChild(modal);
+                
+                // Close modal when clicking outside
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+            }
+
+            static async resetCoins(teamId) {
+                const coinsInput = document.getElementById(`coins_${teamId}`);
+                const newCoins = parseInt(coinsInput.value);
+                
+                if (isNaN(newCoins) || newCoins < 0) {
+                    Utils.showAlert('Please enter a valid coin amount', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/admin/teams/${teamId}/reset-coins`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({ coins: newCoins })
+                    });
+
+                    if (response.ok) {
+                        Utils.showAlert('Team coins updated successfully', 'success');
+                        // Refresh teams list
+                        if (window.adminDashboard) {
+                            window.adminDashboard.loadTeams();
+                        }
+                    } else {
+                        const data = await response.json();
+                        Utils.showAlert(data.error || 'Failed to update coins', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error resetting coins:', error);
+                    Utils.showAlert('Network error updating coins', 'error');
+                }
+            }
+
+            static async refreshStats() {
+                if (window.adminDashboard) {
+                    await window.adminDashboard.loadStats();
+                    await window.adminDashboard.loadQuestions();
+                    Utils.showAlert('Dashboard refreshed', 'success');
+                }
+            }
+
+            static editQuestion(questionId) {
+                Utils.showAlert('Question editing would open here', 'info');
+            }
+
+            static async deleteQuestion(questionId) {
+                if (confirm('Are you sure you want to delete this question?')) {
+                    Utils.showAlert('Question deletion would be implemented here', 'info');
+                }
+            }
+        }
+
+        // Initialize dashboard when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.adminDashboard = new AdminDashboard();
+            window.adminDashboard.initialize();
+        });
+    </script>
+</body>
+</html>

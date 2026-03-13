@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Bidding - Bid2Code</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/admin/dashboard" class="logo">Bid2Code Admin</a>
+                <div class="nav-links">
+                    <a href="/admin/dashboard" class="nav-link">Dashboard</a>
+                    <a href="/admin/create-question" class="nav-link">Create Question</a>
+                    <a href="/admin/live-bidding" class="nav-link active">Live Bidding</a>
+                    <a href="#" class="nav-link" data-logout>Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container admin-container">
+        <div class="admin-header">
+            <h1>Live Bidding Control</h1>
+            <p>Manage real-time auction sessions</p>
+        </div>
+
+        <div class="admin-nav">
+            <ul>
+                <li><a href="/admin/dashboard">Dashboard</a></li>
+                <li><a href="/admin/create-question">Create Question</a></li>
+                <li><a href="/admin/live-bidding" class="active">Live Bidding</a></li>
+            </ul>
+        </div>
+
+        <!-- Bidding Controls -->
+        <div class="live-bidding-container">
+            <div class="bidding-controls">
+                <div class="control-group">
+                    <label for="questionSelect" class="form-label">Select Question</label>
+                    <select id="questionSelect" class="form-input">
+                        <option value="">Loading questions...</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label class="form-label">Bidding Status</label>
+                    <div id="biddingStatus" class="status-indicator status-inactive">Inactive</div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="form-label">&nbsp;</label>
+                    <button id="startBiddingBtn" class="btn btn-success" disabled>Start Bidding</button>
+                    <button id="endBiddingBtn" class="btn btn-danger ml-2" disabled>End Bidding</button>
+                </div>
+            </div>
+
+            <!-- Current Question Display -->
+            <div class="card mb-4" id="currentQuestionCard">
+                <div class="question-header">
+                    <h3 id="currentQuestionTitle">No Question Selected</h3>
+                    <span class="difficulty-tag difficulty-easy" id="currentQuestionDifficulty">Easy</span>
+                </div>
+                <div class="question-description" id="currentQuestionDescription">
+                    Select a question to start bidding
+                </div>
+            </div>
+
+            <!-- Bidding Timer -->
+            <div class="bidding-timer hidden" id="biddingTimer">
+                <h2>⏰ LIVE BIDDING IN PROGRESS</h2>
+                <div class="timer-display" id="adminTimerDisplay">00:30</div>
+                <div class="mt-2">30-second auction round</div>
+            </div>
+
+            <!-- Winner Announcement -->
+            <div class="winner-highlight hidden" id="winnerAnnouncement">
+                <h2>🏆 WINNER ANNOUNCED</h2>
+                <p id="winnerMessage">Waiting for bids...</p>
+            </div>
+
+            <!-- Live Bids Feed -->
+            <div class="bids-live-feed">
+                <h3>Live Bid Feed</h3>
+                <div id="bidsFeed">
+                    <div class="text-center p-3" id="noBidsFeed">
+                        <div>📢</div>
+                        <p>No bids yet. Start bidding to see live updates!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="stats-dashboard mt-4">
+            <div class="stat-card-admin">
+                <div class="stat-label">Current Bid</div>
+                <div class="stat-value" id="currentBidDisplay">0 B2C</div>
+            </div>
+            <div class="stat-card-admin">
+                <div class="stat-label">Leading Team</div>
+                <div class="stat-value" id="leadingTeam">None</div>
+            </div>
+            <div class="stat-card-admin">
+                <div class="stat-label">Total Bids</div>
+                <div class="stat-value" id="totalBids">0</div>
+            </div>
+            <div class="stat-card-admin">
+                <div class="stat-label">Time Remaining</div>
+                <div class="stat-value" id="timeRemaining">--:--</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/socket.js"></script>
+    <script>
+        // Live Bidding Page Logic
+        class LiveBiddingPage {
+            constructor() {
+                this.questions = [];
+                this.currentBids = [];
+                this.isActiveBidding = false;
+            }
+
+            async initialize() {
+                // First check sessionStorage for quick validation
+                const isAdminSession = sessionStorage.getItem('isAdmin');
+                console.log('[LiveBidding] SessionStorage check:', isAdminSession);
+                
+                if (!isAdminSession) {
+                    console.log('[LiveBidding] No admin session in sessionStorage, redirecting');
+                    window.location.href = '/admin/login';
+                    return;
+                }
+                
+                // Then verify with server-side session (but don't fail immediately)
+                try {
+                    console.log('[LiveBidding] Checking server-side admin authentication...');
+                    const response = await fetch('/api/auth/me', {
+                        method: 'GET',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    console.log('[LiveBidding] Server auth check response status:', response.status);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('[LiveBidding] Server auth check response data:', data);
+                        
+                        if (data.userType !== 'admin') {
+                            console.error('[LiveBidding] User is not admin, redirecting');
+                            window.location.href = '/admin/login';
+                            return;
+                        }
+                        
+                        console.log('[LiveBidding] Admin authenticated successfully on server');
+                    } else {
+                        console.warn('[LiveBidding] Server auth check failed, but continuing with sessionStorage');
+                        // Continue anyway if sessionStorage says admin
+                    }
+
+                    // Set up socket connection
+                    if (window.bidSocket) {
+                        window.bidSocket.joinAdminRoom();
+                        
+                        // Override socket event handlers
+                        window.bidSocket.onBiddingStarted = (data) => this.handleBiddingStarted(data);
+                        window.bidSocket.onHighestBidUpdate = (data) => this.handleHighestBidUpdate(data);
+                        window.bidSocket.onTimerUpdate = (timeLeft) => this.handleTimerUpdate(timeLeft);
+                        window.bidSocket.onAuctionEnd = (data) => this.handleAuctionEnd(data);
+                    }
+
+                    await this.loadQuestions();
+                    this.setupEventListeners();
+                    console.log('[LiveBidding] Page initialized successfully');
+                    
+                    // Check for last created question
+                    const lastQuestion = Utils.getSessionStorage('lastCreatedQuestion');
+                    if (lastQuestion) {
+                        this.selectQuestion(lastQuestion.id);
+                        Utils.removeSessionStorage('lastCreatedQuestion');
+                    }
+                } catch (error) {
+                    console.error('[LiveBidding] Auth check failed:', error);
+                    // If we have sessionStorage, try to continue anyway
+                    if (isAdminSession) {
+                        console.warn('[LiveBidding] Server check failed but sessionStorage exists, continuing...');
+                        
+                        // Set up socket connection
+                        if (window.bidSocket) {
+                            window.bidSocket.joinAdminRoom();
+                            
+                            // Override socket event handlers
+                            window.bidSocket.onBiddingStarted = (data) => this.handleBiddingStarted(data);
+                            window.bidSocket.onHighestBidUpdate = (data) => this.handleHighestBidUpdate(data);
+                            window.bidSocket.onTimerUpdate = (timeLeft) => this.handleTimerUpdate(timeLeft);
+                            window.bidSocket.onAuctionEnd = (data) => this.handleAuctionEnd(data);
+                        }
+
+                        await this.loadQuestions();
+                        this.setupEventListeners();
+                        
+                        // Check for last created question
+                        const lastQuestion = Utils.getSessionStorage('lastCreatedQuestion');
+                        if (lastQuestion) {
+                            this.selectQuestion(lastQuestion.id);
+                            Utils.removeSessionStorage('lastCreatedQuestion');
+                        }
+                    } else {
+                        window.location.href = '/admin/login';
+                    }
+                }
+            }
+
+            setupEventListeners() {
+                const questionSelect = document.getElementById('questionSelect');
+                const startBtn = document.getElementById('startBiddingBtn');
+                const endBtn = document.getElementById('endBiddingBtn');
+
+                questionSelect.addEventListener('change', (e) => this.selectQuestion(parseInt(e.target.value)));
+                startBtn.addEventListener('click', () => this.startBidding());
+                endBtn.addEventListener('click', () => this.endBidding());
+            }
+
+            async loadQuestions() {
+                try {
+                    const response = await fetch('/api/admin/questions', {
+                        credentials: 'include'
+                    });
+                    if (response.ok) {
+                        this.questions = await response.json();
+                        this.populateQuestionSelect();
+                    }
+                } catch (error) {
+                    console.error('Error loading questions:', error);
+                    Utils.showAlert('Failed to load questions', 'error');
+                }
+            }
+
+            populateQuestionSelect() {
+                const select = document.getElementById('questionSelect');
+                select.innerHTML = '<option value="">Select a question...</option>';
+                
+                this.questions.forEach(question => {
+                    const option = document.createElement('option');
+                    option.value = question.id;
+                    option.textContent = `${question.title} (${question.difficulty} - Round ${question.round})`;
+                    select.appendChild(option);
+                });
+            }
+
+            selectQuestion(questionId) {
+                const question = this.questions.find(q => q.id === questionId);
+                
+                if (question) {
+                    document.getElementById('currentQuestionTitle').textContent = question.title;
+                    document.getElementById('currentQuestionDescription').textContent = question.description;
+                    
+                    const difficultyTag = document.getElementById('currentQuestionDifficulty');
+                    difficultyTag.textContent = question.difficulty;
+                    difficultyTag.className = `difficulty-tag difficulty-${question.difficulty.toLowerCase()}`;
+                    
+                    // Enable start button if not actively bidding
+                    if (!this.isActiveBidding) {
+                        document.getElementById('startBiddingBtn').disabled = false;
+                    }
+                } else {
+                    document.getElementById('currentQuestionTitle').textContent = 'No Question Selected';
+                    document.getElementById('currentQuestionDescription').textContent = 'Select a question to start bidding';
+                    document.getElementById('startBiddingBtn').disabled = true;
+                }
+            }
+
+            startBidding() {
+                const questionId = parseInt(document.getElementById('questionSelect').value);
+                
+                if (!questionId) {
+                    Utils.showAlert('Please select a question first', 'error');
+                    return;
+                }
+
+                if (window.bidSocket) {
+                    window.bidSocket.startBidding(questionId);
+                }
+            }
+
+            endBidding() {
+                if (window.bidSocket) {
+                    window.bidSocket.endBidding();
+                }
+            }
+
+            handleBiddingStarted(data) {
+                console.log('Bidding started:', data);
+                
+                this.isActiveBidding = true;
+                this.currentBids = [];
+                
+                // Update UI
+                document.getElementById('biddingStatus').className = 'status-indicator status-active';
+                document.getElementById('biddingStatus').textContent = 'Active';
+                document.getElementById('startBiddingBtn').disabled = true;
+                document.getElementById('endBiddingBtn').disabled = false;
+                document.getElementById('biddingTimer').classList.remove('hidden');
+                document.getElementById('winnerAnnouncement').classList.add('hidden');
+                
+                // Reset displays
+                document.getElementById('currentBidDisplay').textContent = '0 B2C';
+                document.getElementById('leadingTeam').textContent = 'None';
+                document.getElementById('totalBids').textContent = '0';
+                document.getElementById('timeRemaining').textContent = '00:30';
+                document.getElementById('adminTimerDisplay').textContent = '00:30';
+                
+                // Clear bids feed
+                this.clearBidsFeed();
+                
+                Utils.showAlert('Bidding started successfully!', 'success');
+            }
+
+            handleHighestBidUpdate(data) {
+                // Update current bid display
+                document.getElementById('currentBidDisplay').textContent = Utils.formatCoins(data.bidAmount);
+                document.getElementById('leadingTeam').textContent = data.teamName;
+                
+                // Add to bids feed
+                this.addToBidsFeed(data.teamName, data.bidAmount);
+                
+                // Update total bids
+                document.getElementById('totalBids').textContent = this.currentBids.length;
+            }
+
+            handleTimerUpdate(timeLeft) {
+                const formattedTime = Utils.formatTime(timeLeft);
+                document.getElementById('timeRemaining').textContent = formattedTime;
+                document.getElementById('adminTimerDisplay').textContent = formattedTime;
+                
+                // Add warning effect when time is low
+                const timerDisplay = document.getElementById('adminTimerDisplay');
+                if (timeLeft <= 10000) {
+                    timerDisplay.classList.add('timer-critical');
+                } else if (timeLeft <= 30000) {
+                    timerDisplay.classList.add('timer-warning');
+                }
+            }
+
+            handleAuctionEnd(data) {
+                console.log('Auction ended:', data);
+                
+                this.isActiveBidding = false;
+                
+                // Update UI
+                document.getElementById('biddingStatus').className = 'status-indicator status-inactive';
+                document.getElementById('biddingStatus').textContent = 'Ended';
+                document.getElementById('startBiddingBtn').disabled = false;
+                document.getElementById('endBiddingBtn').disabled = true;
+                document.getElementById('biddingTimer').classList.add('hidden');
+                
+                // Reset timer display classes
+                document.getElementById('adminTimerDisplay').className = 'timer-display';
+                
+                // Show winner announcement
+                const winnerDiv = document.getElementById('winnerAnnouncement');
+                if (data.winner) {
+                    document.getElementById('winnerMessage').textContent = 
+                        `${data.winner.teamName} won with ${Utils.formatCoins(data.winner.bidAmount)}!`;
+                    winnerDiv.classList.remove('hidden');
+                } else {
+                    document.getElementById('winnerMessage').textContent = 'No bids were placed for this question.';
+                    winnerDiv.classList.remove('hidden');
+                }
+                
+                Utils.showAlert('Auction completed', 'success');
+            }
+
+            addToBidsFeed(teamName, bidAmount) {
+                const bidEntry = document.createElement('div');
+                bidEntry.className = 'bid-entry';
+                bidEntry.innerHTML = `
+                    <span class="bid-team-name">${teamName}</span>
+                    <span class="bid-amount-display">${Utils.formatCoins(bidAmount)}</span>
+                `;
+                
+                // Highlight if this is the current highest bid
+                const currentBid = parseInt(document.getElementById('currentBidDisplay').textContent);
+                if (bidAmount === currentBid) {
+                    bidEntry.classList.add('winner');
+                }
+                
+                const feed = document.getElementById('bidsFeed');
+                document.getElementById('noBidsFeed').classList.add('hidden');
+                feed.insertBefore(bidEntry, feed.firstChild);
+                
+                // Keep only last 10 bids
+                while (feed.children.length > 10) {
+                    feed.removeChild(feed.lastChild);
+                }
+                
+                this.currentBids.push({ teamName, bidAmount });
+            }
+
+            clearBidsFeed() {
+                const feed = document.getElementById('bidsFeed');
+                feed.innerHTML = '<div class="text-center p-3" id="noBidsFeed"><div>📢</div><p>No bids yet. Start bidding to see live updates!</p></div>';
+            }
+        }
+
+        // Initialize page when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.liveBiddingPage = new LiveBiddingPage();
+            window.liveBiddingPage.initialize();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Dashboard - Bid2Code</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/team/dashboard" class="logo">Bid2Code</a>
+                <div class="nav-links">
+                    <a href="/team/dashboard" class="nav-link active">Dashboard</a>
+                    <a href="/team/questions" class="nav-link">My Questions</a>
+                    <a href="#" class="nav-link" data-logout>Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container dashboard-container">
+        <div class="welcome-section">
+            <h1 id="welcomeMessage">Welcome, Team!</h1>
+            <p>Ready to bid on coding challenges?</p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Your Coins</div>
+                <div class="stat-value" id="teamCoins">500 B2C</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Questions Bought</div>
+                <div class="stat-value" id="questionsCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Current Round</div>
+                <div class="stat-value">#1</div>
+            </div>
+        </div>
+
+        <!-- Active Question Section -->
+        <div class="question-section">
+            <div class="question-header">
+                <h2 class="question-title" id="questionTitle">No Active Question</h2>
+                <span class="difficulty-tag difficulty-easy" id="questionDifficulty">Easy</span>
+            </div>
+            
+            <div class="question-description" id="questionDescription">
+                Waiting for admin to start a bidding round...
+            </div>
+
+            <!-- Current Highest Bid -->
+            <div class="current-bid">
+                <h3>Current Highest Bid</h3>
+                <div class="current-bid-value" id="currentBidAmount">0 B2C</div>
+                <div id="currentBidTeam">No bids yet</div>
+            </div>
+
+            <!-- Bidding Section -->
+            <div class="bidding-section" id="biddingSection">
+                <div class="timer-display" id="timerDisplay">--:--</div>
+                <div class="bid-form">
+                    <input type="number" id="bidAmount" class="bid-input" placeholder="Your bid" min="1">
+                    <button id="placeBidBtn" class="bid-button" disabled>Place Bid</button>
+                </div>
+                <div class="mt-3" id="biddingStatus">Bidding not active</div>
+            </div>
+
+            <!-- No Active Bidding Message -->
+            <div class="no-active-bidding hidden" id="noBiddingMessage">
+                <div>🏁</div>
+                <h3>No Active Bidding</h3>
+                <p>Waiting for the next question to be posted...</p>
+            </div>
+        </div>
+
+        <!-- Recent Bids -->
+        <div class="bid-history">
+            <h3>Recent Bids</h3>
+            <div id="bidHistoryList">
+                <div class="text-center p-3" id="noBidsMessage">No bids placed yet</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/socket.js"></script>
+    <script>
+        // Team Dashboard Logic
+        class TeamDashboard {
+            constructor() {
+                this.currentUser = null;
+                this.teamId = null;
+                this.isActiveBidding = false;
+                this.currentQuestionId = null;
+                this.timeLeft = 0;
+                this.timerInterval = null;
+                this.setupEventListeners();
+                this.initialize();
+            }
+
+            async initialize() {
+                // Check authentication
+                const authResult = await window.auth.checkAuth();
+                if (!authResult.authenticated || authResult.userType !== 'team') {
+                    window.location.href = '/team/login';
+                    return;
+                }
+
+                this.currentUser = authResult.user;
+                this.teamId = this.currentUser.id;
+                
+                // Update welcome message
+                document.getElementById('welcomeMessage').textContent = `Welcome, ${this.currentUser.teamName}!`;
+                document.getElementById('teamCoins').textContent = Utils.formatCoins(this.currentUser.coins);
+
+                // Set up socket connection
+                if (window.bidSocket) {
+                    window.bidSocket.setTeamId(this.teamId);
+                    
+                    // Override socket event handlers
+                    window.bidSocket.onStartBidding = (data) => this.handleStartBidding(data);
+                    window.bidSocket.onHighestBidUpdate = (data) => this.handleHighestBidUpdate(data);
+                    window.bidSocket.onTimerUpdate = (timeLeft) => this.handleTimerUpdate(timeLeft);
+                    window.bidSocket.onAuctionEnd = (data) => this.handleAuctionEnd(data);
+                    window.bidSocket.onCoinsUpdate = (data) => this.handleCoinsUpdate(data);
+                }
+
+                // Load team questions count
+                this.loadTeamQuestions();
+            }
+
+            setupEventListeners() {
+                const placeBidBtn = document.getElementById('placeBidBtn');
+                const bidAmountInput = document.getElementById('bidAmount');
+
+                placeBidBtn.addEventListener('click', () => {
+                    this.placeBid();
+                });
+
+                bidAmountInput.addEventListener('input', () => {
+                    this.validateBidAmount();
+                });
+
+                // Enter key to place bid
+                bidAmountInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !placeBidBtn.disabled) {
+                        this.placeBid();
+                    }
+                });
+            }
+
+            handleStartBidding(data) {
+                console.log('Bidding started:', data);
+                
+                // Update UI for active bidding
+                this.isActiveBidding = true;
+                this.currentQuestionId = data.question.id;
+                document.getElementById('questionTitle').textContent = data.question.title;
+                document.getElementById('questionDescription').textContent = data.question.description;
+                
+                // Update difficulty tag
+                const difficultyTag = document.getElementById('questionDifficulty');
+                difficultyTag.textContent = data.question.difficulty;
+                difficultyTag.className = `difficulty-tag difficulty-${data.question.difficulty.toLowerCase()}`;
+                
+                // Show bidding section
+                document.getElementById('biddingSection').classList.remove('hidden');
+                document.getElementById('noBiddingMessage').classList.add('hidden');
+                document.getElementById('biddingStatus').textContent = 'Bidding is active!';
+                
+                // Enable bid button
+                this.validateBidAmount();
+                
+                // Reset current bid display
+                document.getElementById('currentBidAmount').textContent = '0 B2C';
+                document.getElementById('currentBidTeam').textContent = 'No bids yet';
+            }
+
+            handleHighestBidUpdate(data) {
+                document.getElementById('currentBidAmount').textContent = Utils.formatCoins(data.bidAmount);
+                document.getElementById('currentBidTeam').textContent = `by ${data.teamName}`;
+                
+                // Disable bid button if current team is leading
+                this.validateBidAmount();
+            }
+
+            handleTimerUpdate(timeLeft) {
+                this.timeLeft = timeLeft;
+                const timerDisplay = document.getElementById('timerDisplay');
+                timerDisplay.textContent = Utils.formatTime(timeLeft);
+                
+                // Add warning styles when time is low
+                if (timeLeft <= 10000) { // 10 seconds
+                    timerDisplay.classList.add('timer-critical');
+                } else if (timeLeft <= 30000) { // 30 seconds
+                    timerDisplay.classList.add('timer-warning');
+                }
+            }
+
+            handleAuctionEnd(data) {
+                this.isActiveBidding = false;
+                this.currentQuestionId = null;
+                
+                // Clear timer
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                }
+                
+                // Reset UI
+                document.getElementById('timerDisplay').textContent = '--:--';
+                document.getElementById('timerDisplay').className = 'timer-display';
+                document.getElementById('placeBidBtn').disabled = true;
+                document.getElementById('bidAmount').value = '';
+                document.getElementById('biddingStatus').textContent = 'Bidding ended';
+                
+                // Show winner message
+                if (data.winner) {
+                    Utils.showAlert(
+                        `${data.winner.teamName} won with ${Utils.formatCoins(data.winner.bidAmount)}!`,
+                        'success'
+                    );
+                    
+                    // Update coins if current team won
+                    if (data.newCoinBalance !== undefined) {
+                        this.currentUser.coins = data.newCoinBalance;
+                        document.getElementById('teamCoins').textContent = Utils.formatCoins(data.newCoinBalance);
+                    }
+                } else {
+                    Utils.showAlert('No bids were placed for this question', 'info');
+                }
+                
+                // Reload questions count
+                this.loadTeamQuestions();
+            }
+
+            handleCoinsUpdate(data) {
+                this.currentUser.coins = data.coins;
+                document.getElementById('teamCoins').textContent = Utils.formatCoins(data.coins);
+            }
+
+            validateBidAmount() {
+                const bidAmount = parseInt(document.getElementById('bidAmount').value) || 0;
+                const placeBidBtn = document.getElementById('placeBidBtn');
+                const currentBid = parseInt(document.getElementById('currentBidAmount').textContent) || 0;
+                
+                if (this.isActiveBidding && 
+                    bidAmount > 0 && 
+                    bidAmount <= this.currentUser.coins && 
+                    bidAmount > currentBid) {
+                    placeBidBtn.disabled = false;
+                } else {
+                    placeBidBtn.disabled = true;
+                }
+            }
+
+            placeBid() {
+                const bidAmount = parseInt(document.getElementById('bidAmount').value);
+                
+                if (!bidAmount || bidAmount <= 0) {
+                    Utils.showAlert('Please enter a valid bid amount', 'error');
+                    return;
+                }
+
+                if (bidAmount > this.currentUser.coins) {
+                    Utils.showAlert('Insufficient coins', 'error');
+                    return;
+                }
+
+                if (window.bidSocket && this.currentQuestionId) {
+                    window.bidSocket.placeBid(this.teamId, this.currentQuestionId, bidAmount);
+                } else {
+                    Utils.showAlert('No active bidding session', 'error');
+                }
+            }
+
+            async loadTeamQuestions() {
+                try {
+                    const response = await fetch('/api/bid/my-questions', {
+                        credentials: 'include'
+                    });
+                    if (response.ok) {
+                        const questions = await response.json();
+                        document.getElementById('questionsCount').textContent = questions.length;
+                    }
+                } catch (error) {
+                    console.error('Error loading team questions:', error);
+                }
+            }
+        }
+
+        // Initialize dashboard when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.teamDashboard = new TeamDashboard();
+        });
+    </script>
+</body>
+</html>

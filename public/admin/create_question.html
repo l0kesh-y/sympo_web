@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Question - Bid2Code</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/admin/dashboard" class="logo">Bid2Code Admin</a>
+                <div class="nav-links">
+                    <a href="/admin/dashboard" class="nav-link">Dashboard</a>
+                    <a href="/admin/create-question" class="nav-link active">Create Question</a>
+                    <a href="/admin/live-bidding" class="nav-link">Live Bidding</a>
+                    <a href="#" class="nav-link" data-logout>Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container admin-container">
+        <div class="admin-header">
+            <h1>Create New Question</h1>
+            <p>Add a coding challenge for the teams to bid on</p>
+        </div>
+
+        <div class="admin-nav">
+            <ul>
+                <li><a href="/admin/dashboard">Dashboard</a></li>
+                <li><a href="/admin/create-question" class="active">Create Question</a></li>
+                <li><a href="/admin/live-bidding">Live Bidding</a></li>
+            </ul>
+        </div>
+
+        <div class="question-form">
+            <form id="questionForm">
+                <div class="form-group">
+                    <label for="title" class="form-label">Question Title</label>
+                    <input type="text" id="title" class="form-input" placeholder="Enter question title" required maxlength="200">
+                    <small>Brief, descriptive title (max 200 characters)</small>
+                </div>
+
+                <div class="form-group form-full">
+                    <label for="description" class="form-label">Question Description</label>
+                    <textarea id="description" class="form-input" rows="8" placeholder="Enter detailed problem description..." required></textarea>
+                    <small>Full problem statement, input/output format, constraints, examples</small>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Difficulty Level</label>
+                        <div class="difficulty-select">
+                            <div class="difficulty-option">
+                                <input type="radio" id="easy" name="difficulty" value="Easy" class="difficulty-input" checked>
+                                <label for="easy" class="difficulty-label">Easy</label>
+                            </div>
+                            <div class="difficulty-option">
+                                <input type="radio" id="medium" name="difficulty" value="Medium" class="difficulty-input">
+                                <label for="medium" class="difficulty-label">Medium</label>
+                            </div>
+                            <div class="difficulty-option">
+                                <input type="radio" id="hard" name="difficulty" value="Hard" class="difficulty-input">
+                                <label for="hard" class="difficulty-label">Hard</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="round" class="form-label">Competition Round</label>
+                        <select id="round" class="form-input" required>
+                            <option value="">Select round</option>
+                            <option value="1">Round 1</option>
+                            <option value="2">Round 2</option>
+                            <option value="3">Round 3</option>
+                            <option value="4">Round 4</option>
+                            <option value="5">Round 5</option>
+                        </select>
+                        <small>Organize questions by competition rounds</small>
+                    </div>
+                </div>
+
+                <div class="form-group form-full">
+                    <label class="form-label">Preview</label>
+                    <div class="card" id="previewContainer">
+                        <div class="question-header">
+                            <h3 id="previewTitle">Question Title Preview</h3>
+                            <span class="difficulty-tag difficulty-easy" id="previewDifficulty">Easy</span>
+                        </div>
+                        <div class="question-description" id="previewDescription">
+                            Question description will appear here as you type...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group form-full text-center">
+                    <button type="submit" class="btn btn-primary" style="padding: 1rem 2rem; font-size: 1.1rem;">
+                        Create Question
+                    </button>
+                    <button type="button" class="btn btn-outline ml-2" onclick="CreateQuestionPage.clearForm()">
+                        Clear Form
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Sample Questions -->
+        <div class="card">
+            <h3 class="card-title mb-3">Sample Question Template</h3>
+            <button class="btn btn-outline mb-3" onclick="CreateQuestionPage.loadSample()">
+                Load Sample Question
+            </button>
+            
+            <div class="sample-content hidden" id="sampleContent">
+                <h4>Two Sum Problem</h4>
+                <p><strong>Title:</strong> Two Sum</p>
+                <p><strong>Description:</strong></p>
+                <pre style="background: var(--light-color); padding: 1rem; border-radius: var(--border-radius);">
+Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.
+
+You may assume that each input would have exactly one solution, and you may not use the same element twice.
+
+Example 1:
+Input: nums = [2,7,11,15], target = 9
+Output: [0,1]
+Explanation: Because nums[0] + nums[1] == 9, we return [0, 1].
+
+Example 2:
+Input: nums = [3,2,4], target = 6
+Output: [1,2]
+
+Constraints:
+- 2 <= nums.length <= 10^4
+- -10^9 <= nums[i] <= 10^9
+- -10^9 <= target <= 10^9
+- Only one valid answer exists.
+
+Follow-up: Can you come up with an algorithm that is less than O(n^2) time complexity?
+                </pre>
+                <p><strong>Difficulty:</strong> Easy</p>
+                <p><strong>Round:</strong> 1</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        // Create Question Page Logic
+        class CreateQuestionPage {
+            constructor() {
+            }
+
+            async initialize() {
+                // First check sessionStorage for quick validation
+                const isAdminSession = sessionStorage.getItem('isAdmin');
+                console.log('[CreateQuestion] SessionStorage check:', isAdminSession);
+                
+                if (!isAdminSession) {
+                    console.log('[CreateQuestion] No admin session in sessionStorage, redirecting');
+                    window.location.href = '/admin/login';
+                    return;
+                }
+                
+                // Then verify with server-side session (but don't fail immediately)
+                try {
+                    console.log('[CreateQuestion] Checking server-side admin authentication...');
+                    const response = await fetch('/api/auth/me', {
+                        method: 'GET',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    console.log('[CreateQuestion] Server auth check response status:', response.status);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('[CreateQuestion] Server auth check response data:', data);
+                        
+                        if (data.userType !== 'admin') {
+                            console.error('[CreateQuestion] User is not admin, redirecting');
+                            window.location.href = '/admin/login';
+                            return;
+                        }
+                        
+                        console.log('[CreateQuestion] Admin authenticated successfully on server');
+                    } else {
+                        console.warn('[CreateQuestion] Server auth check failed, but continuing with sessionStorage');
+                        // Continue anyway if sessionStorage says admin
+                    }
+                    
+                    this.setupEventListeners();
+                    this.setupPreview();
+                    console.log('[CreateQuestion] Page initialized successfully');
+                } catch (error) {
+                    console.error('[CreateQuestion] Auth check failed:', error);
+                    // If we have sessionStorage, try to continue anyway
+                    if (isAdminSession) {
+                        console.warn('[CreateQuestion] Server check failed but sessionStorage exists, continuing...');
+                        this.setupEventListeners();
+                        this.setupPreview();
+                    } else {
+                        window.location.href = '/admin/login';
+                    }
+                }
+            }
+
+            setupEventListeners() {
+                const form = document.getElementById('questionForm');
+                form.addEventListener('submit', (e) => this.handleSubmit(e));
+                
+                // Real-time preview
+                document.getElementById('title').addEventListener('input', () => this.updatePreview());
+                document.getElementById('description').addEventListener('input', () => this.updatePreview());
+                
+                const difficultyInputs = document.querySelectorAll('input[name="difficulty"]');
+                difficultyInputs.forEach(input => {
+                    input.addEventListener('change', () => this.updatePreview());
+                });
+            }
+
+            setupPreview() {
+                // Initial preview update
+                this.updatePreview();
+            }
+
+            updatePreview() {
+                const title = document.getElementById('title').value || 'Question Title Preview';
+                const description = document.getElementById('description').value || 'Question description will appear here as you type...';
+                const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
+                
+                document.getElementById('previewTitle').textContent = title;
+                document.getElementById('previewDescription').textContent = description;
+                
+                const difficultyTag = document.getElementById('previewDifficulty');
+                difficultyTag.textContent = difficulty;
+                difficultyTag.className = `difficulty-tag difficulty-${difficulty.toLowerCase()}`;
+            }
+
+            async handleSubmit(e) {
+                e.preventDefault();
+                
+                const formData = {
+                    title: document.getElementById('title').value.trim(),
+                    description: document.getElementById('description').value.trim(),
+                    difficulty: document.querySelector('input[name="difficulty"]:checked').value,
+                    round: parseInt(document.getElementById('round').value)
+                };
+
+                // Validation
+                if (!formData.title) {
+                    Utils.showAlert('Please enter a question title', 'error');
+                    return;
+                }
+
+                if (!formData.description) {
+                    Utils.showAlert('Please enter a question description', 'error');
+                    return;
+                }
+
+                if (!formData.round) {
+                    Utils.showAlert('Please select a competition round', 'error');
+                    return;
+                }
+
+                // Submit form
+                const submitButton = document.querySelector('button[type="submit"]');
+                const originalText = submitButton.textContent;
+                submitButton.disabled = true;
+                submitButton.textContent = 'Creating Question...';
+
+                try {
+                    const response = await fetch('/api/admin/questions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify(formData)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        Utils.showAlert('Question created successfully!', 'success');
+                        this.clearForm();
+                        
+                        // Option to go to live bidding
+                        setTimeout(() => {
+                            if (confirm('Would you like to start bidding for this question now?')) {
+                                // Store question ID for bidding page
+                                Utils.setSessionStorage('lastCreatedQuestion', data.question);
+                                window.location.href = '/admin/live-bidding';
+                            }
+                        }, 1500);
+                    } else {
+                        Utils.showAlert(data.error || 'Failed to create question', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error creating question:', error);
+                    Utils.showAlert('Network error creating question', 'error');
+                } finally {
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalText;
+                }
+            }
+
+            clearForm() {
+                document.getElementById('questionForm').reset();
+                document.querySelector('input[name="difficulty"][value="Easy"]').checked = true;
+                this.updatePreview();
+                Utils.showAlert('Form cleared', 'info');
+            }
+
+            static loadSample() {
+                document.getElementById('sampleContent').classList.toggle('hidden');
+                
+                // Fill form with sample data
+                document.getElementById('title').value = 'Two Sum';
+                document.getElementById('description').value = `Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.
+
+You may assume that each input would have exactly one solution, and you may not use the same element twice.
+
+Example 1:
+Input: nums = [2,7,11,15], target = 9
+Output: [0,1]
+Explanation: Because nums[0] + nums[1] == 9, we return [0, 1].
+
+Example 2:
+Input: nums = [3,2,4], target = 6
+Output: [1,2]
+
+Constraints:
+- 2 <= nums.length <= 10^4
+- -10^9 <= nums[i] <= 10^9
+- -10^9 <= target <= 10^9
+- Only one valid answer exists.
+
+Follow-up: Can you come up with an algorithm that is less than O(n^2) time complexity?`;
+                document.querySelector('input[name="difficulty"][value="Easy"]').checked = true;
+                document.getElementById('round').value = '1';
+                
+                // Update preview
+                if (window.createQuestionPage) {
+                    window.createQuestionPage.updatePreview();
+                }
+            }
+        }
+
+        // Initialize page when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.createQuestionPage = new CreateQuestionPage();
+            window.createQuestionPage.initialize();
+        });
+    </script>
+</body>
+</html>

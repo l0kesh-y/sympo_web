@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Questions - Bid2Code</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/team/dashboard" class="logo">Bid2Code</a>
+                <div class="nav-links">
+                    <a href="/team/dashboard" class="nav-link">Dashboard</a>
+                    <a href="/team/questions" class="nav-link active">My Questions</a>
+                    <a href="#" class="nav-link" data-logout>Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container dashboard-container">
+        <div class="welcome-section">
+            <h1>My Purchased Questions</h1>
+            <p>Questions your team has won through bidding</p>
+        </div>
+
+        <!-- Stats Summary -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Questions</div>
+                <div class="stat-value" id="totalQuestions">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Spent</div>
+                <div class="stat-value" id="totalSpent">0 B2C</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg. Bid</div>
+                <div class="stat-value" id="avgBid">0 B2C</div>
+            </div>
+        </div>
+
+        <!-- Questions Grid -->
+        <div class="questions-grid" id="questionsContainer">
+            <!-- Questions will be loaded here -->
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        // My Questions Page Logic
+        class MyQuestionsPage {
+            constructor() {
+                this.currentUser = null;
+                this.questions = [];
+                this.initialize();
+            }
+
+            async initialize() {
+                try {
+                    // Show loading state
+                    this.showLoading();
+                    
+                    // Check authentication
+                    const authResult = await window.auth.checkAuth();
+                    
+                    if (!authResult.authenticated || authResult.userType !== 'team') {
+                        window.location.href = '/team/login';
+                        return;
+                    }
+
+                    this.currentUser = authResult.user;
+                    await this.loadQuestions();
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    this.renderError('Failed to initialize page');
+                }
+            }
+
+            showLoading() {
+                const container = document.getElementById('questionsContainer');
+                container.innerHTML = `
+                    <div class="card text-center p-5" style="grid-column: 1 / -1;">
+                        <div class="spinner"></div>
+                        <p class="mt-3">Loading your questions...</p>
+                    </div>
+                `;
+            }
+
+            async loadQuestions() {
+                try {
+                    const response = await fetch('/api/bid/my-questions');
+                    
+                    if (response.ok) {
+                        this.questions = await response.json();
+                        this.renderQuestions();
+                        this.updateStats();
+                    } else {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to load questions');
+                    }
+                } catch (error) {
+                    console.error('Error loading questions:', error);
+                    this.renderError(error.message);
+                }
+            }
+
+            renderQuestions() {
+                const container = document.getElementById('questionsContainer');
+                
+                if (this.questions.length === 0) {
+                    container.innerHTML = `
+                        <div class="no-questions" style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #94a3b8;">
+                            <div style="font-size: 4rem;">📚</div>
+                            <h3>No Questions Purchased</h3>
+                            <p>Your team hasn't won any bidding rounds yet.<br>Head to the dashboard to participate in auctions!</p>
+                            <a href="/team/dashboard" class="btn btn-primary mt-3">Go to Dashboard</a>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = '';
+
+                this.questions.forEach(question => {
+                    const questionCard = this.createQuestionCard(question);
+                    container.appendChild(questionCard);
+                });
+            }
+
+            createQuestionCard(question) {
+                const card = document.createElement('div');
+                card.className = 'question-card';
+                
+                const difficulty = question.difficulty || 'Easy';
+                const difficultyClass = `difficulty-${difficulty.toLowerCase()}`;
+                
+                card.innerHTML = `
+                    <div class="question-header mb-3" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0;">${question.title || 'Untitled'}</h3>
+                        <span class="difficulty-tag ${difficultyClass}">${difficulty}</span>
+                    </div>
+                    
+                    <div class="question-description mb-3" style="color: #64748b;">
+                        ${this.truncateText(question.description || 'No description', 200)}
+                    </div>
+                    
+                    <div class="question-meta mb-3" style="font-size: 0.9rem; color: #94a3b8;">
+                        <div><strong>Round:</strong> ${question.round || 1}</div>
+                        <div><strong>Your Bid:</strong> ${question.bid_amount || 0} B2C</div>
+                        <div><strong>Purchased:</strong> ${this.formatDate(question.assigned_time)}</div>
+                    </div>
+                    
+                    <button class="submit-button" onclick="myQuestionsPage.viewQuestion(${question.question_id || question.id})">
+                        View Full Problem
+                    </button>
+                `;
+                
+                return card;
+            }
+
+            truncateText(text, maxLength) {
+                if (!text) return '';
+                if (text.length <= maxLength) return text;
+                return text.substr(0, maxLength) + '...';
+            }
+
+            formatDate(dateString) {
+                if (!dateString) return 'Unknown';
+                try {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                } catch (e) {
+                    return 'Unknown';
+                }
+            }
+
+            updateStats() {
+                const totalQuestions = this.questions.length;
+                const totalSpent = this.questions.reduce((sum, q) => sum + (q.bid_amount || 0), 0);
+                const avgBid = totalQuestions > 0 ? Math.round(totalSpent / totalQuestions) : 0;
+                
+                document.getElementById('totalQuestions').textContent = totalQuestions;
+                document.getElementById('totalSpent').textContent = `${totalSpent} B2C`;
+                document.getElementById('avgBid').textContent = `${avgBid} B2C`;
+            }
+
+            renderError(message) {
+                const container = document.getElementById('questionsContainer');
+                container.innerHTML = `
+                    <div class="card text-center p-5" style="grid-column: 1 / -1;">
+                        <h3>⚠️ Error Loading Questions</h3>
+                        <p>There was a problem loading your purchased questions.</p>
+                        <p style="color: #94a3b8; font-size: 0.9rem;">${message || ''}</p>
+                        <button class="btn btn-primary" onclick="location.reload()">Try Again</button>
+                    </div>
+                `;
+            }
+
+            viewQuestion(questionId) {
+                // Find the question
+                const question = this.questions.find(q => (q.question_id || q.id) === questionId);
+                if (question) {
+                    alert(`Question: ${question.title}\n\nDescription:\n${question.description}`);
+                }
+            }
+        }
+
+        // Initialize page when DOM is loaded
+        let myQuestionsPage;
+        document.addEventListener('DOMContentLoaded', () => {
+            myQuestionsPage = new MyQuestionsPage();
+        });
+    </script>
+</body>
+</html>
