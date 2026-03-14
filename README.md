@@ -7,7 +7,7 @@ A complete web application for hosting real-time coding competitions where teams
 ### For Teams
 - **Team Registration & Login** - Secure authentication system
 - **Dashboard** - Real-time view of coins, active questions, and bidding
-- **Live Bidding** - 30-second auction rounds with real-time updates
+- **Live Bidding** - 60-second auction rounds with real-time updates
 - **Question Management** - View purchased questions and spending history
 - **Real-time Updates** - WebSocket-powered live bidding experience
 
@@ -92,7 +92,7 @@ The application will be available at `http://localhost:3000`
 2. **Participating in Bidding**
    - Login at `/team/login`
    - View active questions on the dashboard
-   - Place bids during 30-second auction rounds
+   - Place bids during 60-second auction rounds
    - Higher bids win questions
    - Coins are deducted from winning teams
 
@@ -116,9 +116,9 @@ The application will be available at `http://localhost:3000`
 3. **Running Bidding Sessions**
    - Navigate to "Live Bidding" section
    - Select a question to bid on
-   - Click "Start Bidding" to begin 30-second auction
+   - Click "Start Bidding" to begin 60-second auction
    - Monitor live bids in real-time
-   - Auctions end automatically after 30 seconds
+   - Auctions end automatically after 60 seconds
 
 4. **Managing Teams**
    - View all teams and their coin balances
@@ -183,7 +183,7 @@ See `database/schema.sql` for complete schema.
 - `PORT`: Server port (default: 3000)
 
 ### Customization Options
-- Modify bidding duration in `server/socket.js` (default: 30 seconds)
+- Modify bidding duration in `server/socket.js` (default: 60 seconds)
 - Adjust starting coins in database schema (default: 500)
 - Customize difficulty levels in admin interface
 - Modify UI colors in CSS variables

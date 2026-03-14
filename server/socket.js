@@ -7,7 +7,7 @@ let activeBidding = {
     questionData: null,
     startTime: null,
     endTime: null,
-    duration: 30000, // 30 seconds
+    duration: 60000, // 60 seconds
     timerInterval: null,
     currentHighestBid: {
         teamId: null,
@@ -131,7 +131,7 @@ function initializeSocket(io) {
                     questionData: question,
                     startTime: Date.now(),
                     endTime: Date.now() + activeBidding.duration,
-                    duration: 30000,
+                    duration: activeBidding.duration,
                     timerInterval: null,
                     currentHighestBid: {
                         teamId: null,
@@ -243,7 +243,7 @@ async function endBidding(io) {
             questionData: null,
             startTime: null,
             endTime: null,
-            duration: 30000,
+            duration: activeBidding.duration,
             timerInterval: null,
             currentHighestBid: {
                 teamId: null,

@@ -72,8 +72,8 @@
             <!-- Bidding Timer -->
             <div class="bidding-timer hidden" id="biddingTimer">
                 <h2>⏰ LIVE BIDDING IN PROGRESS</h2>
-                <div class="timer-display" id="adminTimerDisplay">00:30</div>
-                <div class="mt-2">30-second auction round</div>
+                <div class="timer-display" id="adminTimerDisplay">01:00</div>
+                <div class="mt-2">60-second auction round</div>
             </div>
 
             <!-- Winner Announcement -->
@@ -347,7 +347,7 @@
                 const timerDisplay = document.getElementById('adminTimerDisplay');
                 if (timeLeft <= 10000) {
                     timerDisplay.classList.add('timer-critical');
-                } else if (timeLeft <= 30000) {
+                } else if (timeLeft <= 60000) {
                     timerDisplay.classList.add('timer-warning');
                 }
             }
